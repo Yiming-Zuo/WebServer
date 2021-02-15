@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${/Library/Developer/CommandLineTools/usr/lib/clang/12.0.0/include}/**"
+            ],
+            "defines": [],
+            "compilerPath": "usr/bin/clang",
+            "macFrameworkPath": [
+                "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"
+            ],
+            "cStandard": "c11",
+            "cppStandard": "c++98",
+            "intelliSenseMode": "clang-x64"
+        }
+    ],
+    "version": 4
+}
