@@ -22,10 +22,10 @@ public:
         sem_destroy(&m_sem);
     }
     bool wait() {
-        return sem_wait() == 0;
+        return sem_wait(&m_sem) == 0;
     }
     bool post() {
-        return sem_post() == 0;
+        return sem_post(&m_sem) == 0;
     }
     int getSV() {
         int sval;
@@ -40,7 +40,7 @@ private:
 class locker {
 public:
     locker() {
-        if (pthread_mutex_init(&m_mtx, NULL) !== 0) {
+        if (pthread_mutex_init(&m_mtx, NULL) != 0) {
             throw std::exception();
         }
     }
