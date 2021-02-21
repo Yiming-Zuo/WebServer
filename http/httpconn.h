@@ -1,5 +1,5 @@
-#ifndef HTTPCONN_H
-#define HTTPCONN_H
+#ifndef HTTP_CONN_H
+#define HTTP_CONN_H
 
 #include <unistd.h>
 #include <signal.h>
@@ -24,7 +24,7 @@
 
 #include "../lock/locker.h"
 
-class httpconn {
+class http_conn {
 public:
     static const int FLIENAME_LEN = 200;
     static const int READ_BUFFER_SIZE =2048;
@@ -52,4 +52,4 @@ private:
 };
 
 
-#endif // !HTTPCONN_H
+#endif // !HTTP_CONN_H

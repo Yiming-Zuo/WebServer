@@ -1,7 +1,7 @@
 # WebServer
 
 ## 已完成
-### 线程同步机制封装类 lock     
+### 线程同步机制封装类 `lock`     
 > 多线程同步，确保任意时刻只有一个线程能进入关键代码段
 * 信号量 `sem`
     * `sem.wait()`
@@ -17,7 +17,7 @@
     * `cond.signal()`
     * `cond.broadcast()`
 
-### 半同步/半反应堆线程池 threadpool
+### 半同步/半反应堆线程池 `threadpool`
 > 线程池的设计模式为半同步/半反应堆，其中反应堆具体为Proactor事件处理模式。
 > 主线程为异步线程，负责监听lfd，接受socker新连接，当lfd发生读写事件后，将任务插入到请求队列中。工作线程从请求队列中取出任务，完成读写数据的处理。
 
@@ -48,7 +48,7 @@ pthreadpool() -> pthread_create() -> worker() -> run()
         * 从任务队列中取出一个任务 `request`
         * `request(http类)`调用`process()`进行处理
 
-### http连接请求处理类 http_coon
+### http连接请求处理类 `http_coon`
 > http报文处理流程:    
     浏览器发出http连接请求 -> 主线程创建http对象接受请求并把所有数据存入buffer中 -> 将该http对象插入任务队列 -> 工作线程从任务队列中取出一个http对象进行处理 -> 调用process_read函数，通过主、从状态机对请求报文进行解析 -> 跳转do_request函数生产相应报文，通过process_write写入buffer -> 返回给浏览器
 
