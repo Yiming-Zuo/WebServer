@@ -42,17 +42,17 @@ void addfd(int epollfd, int fd, bool one_shot)
 #endif
 
 #ifdef LT
-    ev.event = EPOLLIN | EPOLLRDHUP;
+    ev.events = EPOLLIN | EPOLLRDHUP;
 #endif
     if (one_shot) {
-        ev.event |= EPOLLONESHOT;
+        ev.events |= EPOLLONESHOT;
     }
     epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &ev);
     setnonblocking(fd);  // 设置非阻塞
 }
 
 // 重置EPOLLONESHOT事件
-void modfd(int epoll, int fd, int event) 
+void modfd(int epollfd, int fd, int event) 
 {
     epoll_event ev;
     ev.data.fd = fd;
@@ -61,15 +61,15 @@ void modfd(int epoll, int fd, int event)
 #endif
 
 #ifdef LT
-    ev.event = event | EPOLLRDHUP | EPOLLONESHOT;
+    ev.events = event | EPOLLRDHUP | EPOLLONESHOT;
 #endif
-    epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &ev)
+    epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &ev);
 }
 
 // 内核事件表删除事件
 void removefd(int epollfd, int fd) 
 {
-    epoll(epollfd, EPOLL_CTL_DEL, fd, 0);
+    epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, 0);
     close(fd);
 }
 
@@ -81,7 +81,7 @@ void http_conn::init(int sockfd, const sockaddr_in &addr)
 {
     m_sockfd = sockfd;
     m_address = addr;
-    addfd(m_epoll, sockfd, ture);
+    addfd(m_epollfd, sockfd, true);
     m_user_count++;
 
     init();
@@ -238,7 +238,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
 //      connection字段： keep-alive/close -> linger
 //      content-length字段： 读取post请求的消息体长度 -> content_length
 //      HOST字段 -> host
-http_conn::HTTP_CODE http_conn::parse_headers(char* text)
+http_conn::HTTP_CODE http_conn::parse_request_headers(char* text)
 {
     // 如果是空行
     if(text[ 0 ] == '\0')
@@ -299,6 +299,104 @@ http_conn::HTTP_CODE http_conn::parse_content(char *text)
     return NO_REQUEST;
 }
 
+// 从状态机：分析出一行内容
+http_conn::LINE_STATUS http_conn::parse_line()
+{
+    char tmp;
+    // 遍历读缓冲区中还没被解析的字节
+    for (; m_checked_idx < m_read_idx; m_checked_idx++)
+    {
+        tmp = m_read_buf[m_checked_idx];
+
+        if (tmp == '\r') 
+        {
+            // \r在缓冲区末尾，说明接受不完整，要继续接受
+            if ((m_checked_idx + 1) == m_read_idx) 
+            {
+                return LINE_OPEN;
+            }
+            else if (m_read_buf[m_checked_idx + 1] == '\n')  // 完整一行
+            {
+                m_read_buf[m_checked_idx] = '\0';
+                m_read_buf[m_checked_idx + 1] = '\0';
+                return LINE_OK;
+            }
+            return LINE_BAD;  // 语法错误
+        }
+
+        if (tmp == '\n')
+        {
+            // 如果前一个字符是\r, 有可能是上次读取到\r就到buf末尾了
+            if (m_checked_idx > 1 && m_read_buf[m_checked_idx-1] == '\r')
+            {
+                m_read_buf[m_checked_idx] = '\0';
+                m_read_buf[m_checked_idx + 1] = '\0';
+                return LINE_OK;
+            }
+            return LINE_BAD;
+        }
+    }
+    return LINE_OPEN;  // 没有找到\r\n 继续接收
+}
+
+// 响应报文
+http_conn::HTTP_CODE http_conn::do_request() 
+{
+    strcpy(m_real_file, doc_root);  // m_real_file初始化为网站根目录
+    int len = strlen(doc_root);
+    strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);  // 拼接成最终的请求文件地址
+    if (stat(m_real_file, &m_file_stat) < 0)  // 获取请求文件属性
+    {
+        return NO_RESOURCE;  // 请求资源不存在
+    }
+    if (!(m_file_stat.st_mode & S_IROTH))  // S_IROTH 所有人可都
+    {
+        return BAD_REQUEST;  // 请求资源进制访问，没有读取权限
+    }
+    if (S_ISDIR(m_file_stat.st_mode))  // 请求文件为目录
+    {
+        return BAD_REQUEST;
+    }
+    
+    int fd = open(m_real_file, O_RDONLY);  // 打开文件
+    m_file_address = (char *)mmap(0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);  // 将文件映射到共享内存中，提高文件访问速度
+    close(fd);
+    return FILE_REQUEST;  // 正常访问
+}
+
+// 更新写缓存区中的报文
+bool http_conn::add_response( const char* format, ... )
+{
+    if(m_write_idx >= WRITE_BUFFER_SIZE)  // 写入内容超过缓存区容量
+    {
+        return false;
+    }
+    va_list arg_list;  // 定义可变参数列表
+    va_start(arg_list, format);  // 将arg_list初始化为传入参数
+    int len = vsnprintf(m_write_buf + m_write_idx, WRITE_BUFFER_SIZE - 1 - m_write_idx, format, arg_list);  // 将数据format从可变参数列表写入缓冲区写，返回写入数据的长度
+    if(len >= (WRITE_BUFFER_SIZE - 1 - m_write_idx))  // 写入数据长度超过缓冲区剩余容量
+    {
+        return false;
+    }
+    m_write_idx += len;  // 更新位置
+    va_end(arg_list);  // 清空可变参数列表
+    return true;
+}
+
+// 响应报文添加状态行：http/1.1 状态码 状态消息
+bool http_conn::add_status_line(int status, const char* title)
+{
+    return add_response("%s %d %s\r\n", "HTTP/1.1", status, title);
+}
+
+// 发送响应报文
+bool http_conn::write()
+{
+    int tmp = 0;
+    int sended = 0; // 已经发送的字节数
+    int idx = m_write_idx;  // 写入的位置
+    // TODO
+}
 
 // 报文解析
 http_conn::HTTP_CODE http_conn::process_read()
@@ -329,7 +427,7 @@ http_conn::HTTP_CODE http_conn::process_read()
             }
             case CHECK_STATE_HEADER:  // 请求头
             {
-                ret = parse_headers(text);  // 解析请求头
+                ret = parse_request_headers(text);  // 解析请求头
                 if ( ret == BAD_REQUEST )
                 {
                     return BAD_REQUEST;
@@ -358,38 +456,3 @@ http_conn::HTTP_CODE http_conn::process_read()
     return NO_REQUEST;
 }
 
-// 从状态机：分析出一行内容
-http_conn::LINE_STATUS http_conn::parse_line()
-{
-    char tmp;
-    // 遍历读缓冲区中还没被解析的字节
-    for (; m_checked_idx < m_read_idx; m_checked_idx++)
-    {
-        tmp = m_read_buf[m_checked_idx];
-
-        if (tmp == '\r') {
-            // \r在缓冲区末尾，说明接受不完整，要继续接受
-            if ((m_checked_idx + 1) == m_read_idx) return LINE_OPEN;
-            else if (m_read_buf[m_checked_idx + 1] == '\n')  // 完整一行
-            {
-                m_read_buf[m_checked_idx] = '\0';
-                m_read_buf[m_checked_idx + 1] = '\0';
-                return LINE_OK;
-            }
-            return LINE_BAD;  // 语法错误
-        }
-
-        if (tmp == '\n')
-        {
-            // 如果前一个字符是\r, 有可能是上次读取到\r就到buf末尾了
-            if (m_checked_idx > 1 && m_read_buf[m_checked_idx-1] == '\r')
-            {
-                m_read_buf[m_checked_idx] = '\0';
-                m_read_buf[m_checked_idx + 1] = '\0';
-                return LINE_OK;
-            }
-            return LINE_BAD;
-        }
-    }
-    return LINE_OPEN;  // 没有找到\r\n 继续接收
-}

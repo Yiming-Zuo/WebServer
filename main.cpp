@@ -53,8 +53,8 @@ int main(int argc, char *argv[])
     }
     
     // 创建http_conn类对象
-    http_conn *users = new http_conn[MAX_FD]  // TODO
-    assert(users);  // TODO
+    http_conn *users = new http_conn[MAX_FD];  // TODO
+    assert(users != NULL);  // TODO
     int user_count = 0;  // TODO
 
     // lfd
@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
     // 创建内核事件表
     epoll_event evs[MAX_EVENT_NUM];
     // 构造epoll树
-    epollfd = epoll_create(10);
+    int epollfd = epoll_create(10);
     assert(epollfd != -1);
     // 将lfd挂到epoll树上
     addfd(epollfd, lfd, false);
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
     while (true) 
     {
         // 监听epoll上文件描述符的事件
-        int num = epoll(epollfd, evs, MAX_EVENT_NUM, -1);
+        int num = epoll_wait(epollfd, evs, MAX_EVENT_NUM, -1);
         if (num < 0 && errno != EINTR) 
         {
             perror("epoll");
