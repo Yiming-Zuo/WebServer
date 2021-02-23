@@ -11,13 +11,14 @@
 #include "threadpool/threadpool.h"
 #include "http/http_conn.h"
 
-#define MAX_FD 65536  // 最大文件描述符
+#define MAX_FD 65536 // 最大文件描述符
 #define MAX_EVENT_NUM 10000  // 最大事件数
 
 #define LT
 // #define ET
 
 extern void addfd(int epollfd, int fd, bool one_shot);
+extern int removefd(int epollfd, int fd);
 
 // 打印并且向客户端发送错误
 void show_error(int connfd, const char *info) 
@@ -27,10 +28,9 @@ void show_error(int connfd, const char *info)
     close(connfd);
 }
 
-
 int main(int argc, char *argv[])
 {
-    if (argc <= 1)
+    if (argc <= 2)
     {   
         printf("usage: %s ip_address port_number\n", basename(argv[0]));  // basename(): 获取路径中的文件名
         return 1;
@@ -68,14 +68,15 @@ int main(int argc, char *argv[])
     bzero(&addr, sizeof(addr));  // 将结构体空间清零
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    inet_pton(AF_INET, ip, &addr.sin_addr.s_addr);
+    // inet_pton(AF_INET, ip, &addr.sin_addr.s_addr);
+    addr.sin_addr.s_addr = INADDR_ANY;
     int ret  = bind(lfd, (struct sockaddr *)&addr, sizeof(addr));
     assert(ret >= 0);
 
     // listen
     ret = listen(lfd, 100);
     assert(ret >= 0);
-
+    printf("等待连接\n");
 
     // 创建内核事件表
     epoll_event evs[MAX_EVENT_NUM];
@@ -97,7 +98,7 @@ int main(int argc, char *argv[])
             break;
         }
         // 遍历就绪事件
-        for (int i = 0; i < MAX_EVENT_NUM; i++) 
+        for (int i = 0; i < num; i++) 
         {
             int sockfd = evs[i].data.fd;
             // 监听到新的客户端连接
@@ -113,6 +114,9 @@ int main(int argc, char *argv[])
                     perror("accept");
                     continue;
                 }
+                char str[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &addr.sin_addr.s_addr, str, sizeof(str));
+                printf("%s 连接成功\n", str);
                 if (http_conn::m_user_count >= MAX_FD)  // socket连接数 
                 {
                     show_error(connfd, "Internal server busy");

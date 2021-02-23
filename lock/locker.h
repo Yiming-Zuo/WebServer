@@ -69,9 +69,10 @@ public:
         }
     }
     ~cond() {
-        if (pthread_cond_destroy(&m_cond) != 0) {
-            throw std::exception();
-        }
+        pthread_cond_destroy(&m_cond);
+        // if (pthread_cond_destroy(&m_cond) != 0) {
+        //     throw std::exception();
+        // }
     }
     bool wait(pthread_mutex_t *mtx) {
         return pthread_cond_wait(&m_cond, mtx) == 0;

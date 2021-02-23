@@ -27,8 +27,8 @@
 class http_conn 
 {
 public:
-    http_conn();
-    ~http_conn();
+    // http_conn();
+    // ~http_conn();
 
 public:
     static const int FILENAME_LEN = 200;
@@ -68,12 +68,12 @@ private:
     // 发送响应报文部分
     void unmap();
     bool add_response(const char* format, ...);  // 更新写缓存区中的报文
-    bool add_content(const char* content);
-    bool add_status_line(int status, const char* title);
-    bool add_headers(int content_length);  // 添加响应头
-    bool add_content_length(int content_length);
-    bool add_linger();
-    bool add_blank_line();
+    bool add_content(const char* content);  // 添加content
+    bool add_status_line(int status, const char* title);  // 报文添加状态行
+    bool add_headers(int content_length);  // 报文添加消息报头
+    bool add_content_length(int content_length);  // 记录响应报文长度，用于浏览器端判断服务器是否发送完数据
+    bool add_linger();  // 消息报头添加连接状态
+    bool add_blank_line();  // 消息报头添加空行
 
 public:
     static int m_epollfd;  // epoll树
@@ -105,7 +105,7 @@ private:
     // 报文响应部分
     char *m_file_address;  // 请求文件的地址
     struct stat m_file_stat;  // 请求文件属性
-    struct iovec m_iv[2];
+    struct iovec m_iv[2];  // iovec.iov_base: 指向数据地址的指针  iovec.iov_len 数据长度
     int m_iv_count;
 };
 

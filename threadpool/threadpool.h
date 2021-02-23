@@ -21,7 +21,7 @@ private:
     // 需要设置为静态成员函数：因为pthread_create需要出入的处理函数指针类型要为void *，普通成员函数会默认传入this指针，不能和线程函数参数匹配
     static void *worker(void *arg);
     // 运行函数
-    void run();
+    void run(); 
 
 private:
     int m_pthread_number;  // 当前线程数量
