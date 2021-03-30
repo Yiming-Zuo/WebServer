@@ -51,11 +51,3 @@ pthreadpool() -> pthread_create() -> worker() -> run()
 ### http连接请求处理类 `http_coon`
 > http报文处理流程:    
     浏览器发出http连接请求 -> 主线程创建http对象接受请求并把所有数据存入buffer中 -> 将该http对象插入任务队列 -> 工作线程从任务队列中取出一个http对象进行处理 -> 调用process_read函数，通过主、从状态机对请求报文进行解析 -> 跳转do_request函数生产相应报文，通过process_write写入buffer -> 返回给浏览器
-
-
-## 未完成
-* 定时器处理非活动连接
-* 同步/异步日志系统
-* 数据库连接池
-* 同步线程注册和登录校验
-* 压力测试
